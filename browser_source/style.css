@@ -1,0 +1,85 @@
+/* @import url('https://fonts.googleapis.com/css?family=Open+Sans:100,200,300,400,500,600,700,800,900'); */
+
+* {
+	text-transform: uppercase;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+    background-color: #ffffff; /* Dark background color */
+    color: #000000; /* Light text color */
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #121212; /* Dark background color */
+        color: #ffffff; /* Light text color */
+    }
+}
+
+#statusContainer {
+	font-family: 'Metropolis';
+	font-style: italic;
+	font-weight: bold;
+	font-size: 30px;
+	width: 400px;
+	max-width: fit-content;
+	text-align: center;
+	background-color: #D12025;
+	color: white;
+	padding: 10px;
+	border-radius: 10px;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+
+#mainContainer {
+	display: flex;
+	position: absolute;
+	width: 100vw;
+	height: 170px;
+}
+
+#boxart {
+	position: relative;
+	opacity: 0;
+	border-radius: 16px;
+	overflow: hidden;
+	z-index: 2;
+	top: 50%;
+}
+
+#userInfoContainer {
+	position: relative;
+	font-style: italic;
+	color: white;
+	display: flex;
+	flex-direction: column;
+	flex: 0 1 auto;
+	justify-content: center;
+	z-index: 1;
+	margin: 0px 0px 0px -30px;
+	overflow: hidden;
+}
+
+#yetAnotherContainerThatSitsInsideTheOtherOne {
+	position: relative;
+	border-radius: 0px 16px 16px 0px;
+	padding: 10px 24px 10px 50px;
+	left: -100%;
+	top: 10%
+}
+
+#gameLabel {
+	font-style: italic;
+	font-weight: bold;
+	font-size: 32px;
+}
+
+#statusLabel {
+	font-size: 20px;
+}
