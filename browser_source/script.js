@@ -60,29 +60,24 @@ function connectSB() {
     // const { soundId, soundVolume, tts } = wsdata.data;
     const soundId = wsdata.data.soundId;
     const soundVolume = wsdata.data.soundVolume;
-    const duration = wsdata.data.duration;
     const isTts = wsdata.data.isTts;
+    const duration = wsdata.data.duration;
 
     // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
-    const { timeoutParam } = getUrlParameters();
-    console.log(`timeoutParam: '${timeoutParam}'`);
-
-    if (isTts) {
-      // For playing TTS sounds
-      playSound(soundId, soundVolume, duration, timeoutParam);
-    } else {
-      // For playing sound alerts
-      playSound(soundId, soundVolume, duration, 0);
-    }
+    playSound(soundId, soundVolume, isTts, duration);
   });
 }
 
-function playSound(soundId, soundVolume, duration, timeoutParam) {
-  const soundUrl =
-    duration > 0
-      ? `${soundsTtsUrl}/${encodeURIComponent(soundId)}`
-      : getHighestPrioritySound(soundId, sounds);
+function playSound(soundId, soundVolume, isTts, duration) {
+  let soundUrl;
+  if (isTts) {
+    soundUrl = `${soundsTtsUrl}/${encodeURIComponent(soundId)}`;
+  } else {
+    soundUrl = getHighestPrioritySound(soundId, sounds);
+  }
 
+  const { timeoutParam } = getUrlParameters();
+  console.log(`timeoutParam: '${timeoutParam}'`);
   console.log('Attempting to play sound:', soundUrl);
 
   if (soundUrl) {
