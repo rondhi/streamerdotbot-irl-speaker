@@ -61,12 +61,13 @@ function connectSB() {
     const soundId = wsdata.data.soundId;
     const soundVolume = wsdata.data.soundVolume;
     const duration = wsdata.data.duration;
+    const isTts = wsdata.data.isTts;
 
     // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
     const { timeoutParam } = getUrlParameters();
     console.log(`timeoutParam: '${timeoutParam}'`);
 
-    if (duration > 0) {
+    if (isTts) {
       // For playing TTS sounds
       playSound(soundId, soundVolume, duration, timeoutParam);
     } else {
