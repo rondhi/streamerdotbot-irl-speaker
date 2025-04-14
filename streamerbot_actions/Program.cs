@@ -4,6 +4,7 @@ using Streamer.bot.Plugin.Interface.Enums;
 using Streamer.bot.Common.Events;
 
 using System;
+using System.Linq;
 using System.Reflection;
 using System.IO;
 using System.Collections.Generic;
@@ -21,10 +22,12 @@ public class CPHInline : CPHInlineBase
     private SoundAlert lastSpeechFile = new SoundAlert();
     private List<SoundAlert> speechFileQueue = new List<SoundAlert>();
     private List<string> speechFiles = new List<string>();
+    private List<string> soundFiles = new List<string>();
 
     public void Init()
     {
         CPH.RegisterCustomTrigger("Split Speak", "split_speak", new[]{"Speaker.bot Browser Source"});
+        GetSoundFiles();
     }
 
     public void Dispose()
@@ -67,8 +70,8 @@ public class CPHInline : CPHInlineBase
     public bool PlayAlert()
     {
         string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+
         // Default variables
-        long duration = 0;
         string soundName;
         float soundVolume;
         bool tts = false;
@@ -88,8 +91,8 @@ public class CPHInline : CPHInlineBase
         {
             tts = true;
             soundName = Path.GetFileName(speechFilePath);
-            Log($"{methodName}soundName '{soundName}'");
         }
+        Log($"{methodName}soundName '{soundName}'");
 
         // Get %soundVolume%
         if (!CPH.TryGetArg("soundVolume", out string soundVolumeString))
@@ -104,20 +107,28 @@ public class CPHInline : CPHInlineBase
         Log($"{methodName}soundVolume '{soundVolume}%'");
 
         // Get %duration%, if it exists
-        if (!CPH.TryGetArg("duration", out string durationString))
-            duration = 0;
-
-        if (!long.TryParse(durationString, out duration))
+        if (!CPH.TryGetArg("duration", out long duration))
         {
-            CPH.LogError($"{LOG_HEADER}{methodName}Unable to parse duration. Using 0 duration");
-            duration = 0;
+            string filePath = GetFilePath(soundName);
+            if (File.Exists(filePath))
+            {
+                Log($"{methodName}File '{filePath}' exists");
+                duration = GetSoundDuration(filePath);
+            }
+            else
+            {
+                Log($"{methodName}File '{filePath}' does not exist");
+                duration = 0;
+            }
         }
+        Log($"{methodName}duration '{duration}'");
 
         SoundAlert soundAlert = new SoundAlert
         {
             FilePath = speechFilePath,
             FileName = soundName,
             Volume = soundVolume,
+            IsTts = tts,
             Duration = duration
         };
 
@@ -269,11 +280,39 @@ public class CPHInline : CPHInlineBase
         }
     }
 
+    private List<string> GetSoundFiles()
+    {
+        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+        var soundFiles = new List<string>();
+        string directory = CPH.GetGlobalVar<string>("irlSpeakerDirectory") ?? null;
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+            return soundFiles;
+        // soundFiles = Directory.GetFiles(directory).Select(file => Path.GetFullPath(Path.GetFileName(file))).ToList();
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            soundFiles.Add(Path.GetFullPath(file));
+        }
+        Log($"{methodName}soundFiles:\u000A{JsonConvert.SerializeObject(soundFiles, Formatting.Indented)}");
+        return soundFiles;
+    }
+
+    private string GetFilePath(string fileName)
+    {
+        if (soundFiles.Count < 1)
+        {
+            soundFiles = GetSoundFiles();
+            if (soundFiles.Count < 1)
+                return null;
+        }
+        return soundFiles.FirstOrDefault(file => Path.GetFileName(file).Equals(fileName, StringComparison.OrdinalIgnoreCase));
+    }
+
     private long GetSoundDuration(string filePath)
     {
+        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
         if (string.IsNullOrEmpty(filePath))
         {
-            CPH.LogError($"{LOG_HEADER}File path cannot be null or empty.");
+            CPH.LogError($"{LOG_HEADER}{methodName}File path cannot be null or empty.");
             return 0;
         }
 
@@ -281,6 +320,7 @@ public class CPHInline : CPHInlineBase
         {
             long duration = 0;
             string fileExtension = Path.GetExtension(filePath);
+            Log($"{methodName}fileExtention: '{fileExtension}'");
             switch (fileExtension)
             {
                 case "wav":
@@ -304,11 +344,12 @@ public class CPHInline : CPHInlineBase
                     }
                     break;
             }
+            Log($"{methodName}File '{filePath}' is '{duration}' milliseconds");
             return duration;
         }
         catch (Exception ex)
         {
-            CPH.LogError($"{LOG_HEADER}Failed to read file: '{ex.Message}'");
+            CPH.LogError($"{LOG_HEADER}{methodName}Failed to read file: '{ex.Message}'");
             return 0;
         }
     }
@@ -319,6 +360,7 @@ public class CPHInline : CPHInlineBase
         JObject soundAlertData = new JObject(
             new JProperty("soundId", soundAlert.FileName),
             new JProperty("soundVolume", soundAlert.Volume),
+            new JProperty("isTts", soundAlert.IsTts),
             new JProperty("duration", soundAlert.Duration)
         );
 
@@ -381,6 +423,7 @@ public class CPHInline : CPHInlineBase
         public string FileName { get; set; }
         public string FilePath { get; set; }
         public float Volume { get; set; }
+        public bool IsTts { get; set; }
         public long Duration { get; set; }
         public string TtsUser { get; set; }
         public string TtsMessage { get; set; }
