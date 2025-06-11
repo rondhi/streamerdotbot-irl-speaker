@@ -56,15 +56,21 @@ const client = new StreamerbotClient({
 function connectSB() {
   client.on('General.Custom', (wsdata) => {
     console.log('Received data from Streamer.bot:', wsdata); // Log the entire received data object
+    // Ignore other General Custom
+    if ( wsdata.data.soundId !== undefined ||
+         wsdata.data.soundVolume !== undefined ||
+         wsdata.data.isTts !== undefined ||
+         wsdata.data.duration !== undefined
+    ) {
+      // const { soundId, soundVolume, tts } = wsdata.data;
+      const soundId = wsdata.data.soundId;
+      const soundVolume = wsdata.data.soundVolume;
+      const isTts = wsdata.data.isTts;
+      const duration = wsdata.data.duration;
 
-    // const { soundId, soundVolume, tts } = wsdata.data;
-    const soundId = wsdata.data.soundId;
-    const soundVolume = wsdata.data.soundVolume;
-    const isTts = wsdata.data.isTts;
-    const duration = wsdata.data.duration;
-
-    // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
-    playSound(soundId, soundVolume, isTts, duration);
+      // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
+      playSound(soundId, soundVolume, isTts, duration);
+    }
   });
 }
 
@@ -175,7 +181,7 @@ function fetchSounds() {
     .then((soundFiles) => {
       sounds = soundFiles.map(
         (soundFile) =>
-          encodeURIComponent(`https://${soundsHost}/sounds/${soundFile}`)
+          `https://${soundsHost}/sounds/${encodeURIComponent(soundFile)}`
       );
       console.log('Sounds loaded:', sounds);
     })
