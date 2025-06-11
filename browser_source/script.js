@@ -175,7 +175,7 @@ function fetchSounds() {
     .then((soundFiles) => {
       sounds = soundFiles.map(
         (soundFile) =>
-          `https://${soundsHost}/sounds/${encodeURIComponent(soundFile)}`
+          encodeURIComponent(`https://${soundsHost}/sounds/${soundFile}`)
       );
       console.log('Sounds loaded:', sounds);
     })
