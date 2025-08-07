@@ -11,10 +11,16 @@ function getUrlParameters() {
   const params = new URLSearchParams(window.location.search); // Get URL parameters from browser
   const host = params.get('host') || '127.0.0.1';
   const soundsHost = params.get('soundsHost') || `${host}/irl`;
+  const soundsPath = params.get('sounds') || `${host}/sounds`;
   const port = parseInt(params.get('port')) || 443; // URL parameter for Streamer.bot Websocket server port, default 443
-  const scheme = params.get('scheme') || 'wss';  // Scheme is for either ws or wss, default wss
+  let scheme = 'ws';
+  if (getBooleanParam('secure')) {
+    scheme = 'wss';
+  } // Scheme is for either ws or wss, default ws
+  
   const endpoint = params.get('endpoint') || '/';
   const timeoutParam = parseInt(params.get('timeout')) || 20;
+  
   
   let password;
   if (params.has('password')) {
@@ -23,11 +29,18 @@ function getUrlParameters() {
     password = undefined;
   }
 
-  return { host, port, password, scheme, endpoint, timeoutParam, soundsHost };
+  return { host, port, password, scheme, endpoint, timeoutParam, soundsHost, soundsPath };
 }
 
 function decodeBase64(base64EncodedStr) {
   return atob(base64EncodedStr);
+}
+
+// Function to get boolean value from URL parameter
+function getBooleanParam(paramName) {
+	const params = new URLSearchParams(window.location.search);
+	const paramValue = params.get(paramName);
+	return paramValue === 'true'; // Convert the string to boolean
 }
 
 // Streamer.bot Client Connect
@@ -55,32 +68,41 @@ const client = new StreamerbotClient({
 // This is the main function that connects to the Streamer.bot websocket server
 function connectSB() {
   client.on('General.Custom', (wsdata) => {
-    console.log('Received data from Streamer.bot:', wsdata); // Log the entire received data object
-    // Ignore other General Custom
-    if ( wsdata.data.soundId !== undefined ||
-         wsdata.data.soundVolume !== undefined ||
-         wsdata.data.isTts !== undefined ||
-         wsdata.data.duration !== undefined
-    ) {
-      // const { soundId, soundVolume, tts } = wsdata.data;
-      const soundId = wsdata.data.soundId;
-      const soundVolume = wsdata.data.soundVolume;
-      const isTts = wsdata.data.isTts;
-      const duration = wsdata.data.duration;
-
-      // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
-      playSound(soundId, soundVolume, isTts, duration);
+    if (wsdata.data.extensionName === 'irlSpeaker') {
+      console.log('Received data from Streamer.bot:', wsdata); // Log the entire received data object
+      // Ignore other General Custom
+      if ( wsdata.data.soundId !== undefined ||
+           wsdata.data.soundVolume !== undefined ||
+           wsdata.data.isTts !== undefined ||
+           wsdata.data.duration !== undefined ||
+           wsdata.data.onePointOh !== undefined
+      ) {
+        // const { soundId, soundVolume, tts } = wsdata.data;
+        const soundId = wsdata.data.soundId;
+        const soundVolume = wsdata.data.soundVolume;
+        const isTts = wsdata.data.isTts;
+        const duration = wsdata.data.duration;
+        const onePointOh = wsdata.data.onePointOh;
+  
+        // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
+        playSound(soundId, soundVolume, isTts, duration, onePointOh);
+      }
     }
   });
 }
 
-function playSound(soundId, soundVolume, isTts, duration) {
+function playSound(soundId, soundVolume, isTts, duration, onePointOh) {
   let soundUrl;
+  const { soundsPath } = getUrlParameters();
   if (isTts) {
-    soundUrl = `${soundsTtsUrl}/${encodeURIComponent(soundId)}`;
+    soundUrl = `${soundsTtsUrl}/${soundId}`;
+  } else {
+  if (onePointOh) {
+    soundUrl = `https://${soundsPath}/sounds/${soundId}`;
   } else {
     soundUrl = getHighestPrioritySound(soundId, sounds);
   }
+}
 
   const { timeoutParam } = getUrlParameters();
   console.log(`timeoutParam: '${timeoutParam}'`);
