@@ -98,7 +98,7 @@ function playSound(soundId, soundVolume, isTts, duration, onePointOh) {
     soundUrl = `${soundsTtsUrl}/${soundId}`;
   } else {
   if (onePointOh) {
-    soundUrl = `https://${soundsPath}/sounds/${soundId}`;
+    soundUrl = `https://${soundsPath}/${soundId}`;
   } else {
     soundUrl = getHighestPrioritySound(soundId, sounds);
   }
