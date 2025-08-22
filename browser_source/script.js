@@ -11,6 +11,28 @@ function getBooleanParam(paramName) {
 	return paramValue === 'true'; // Convert the string to boolean
 }
 
+// Can use URL parameters to set different options
+function getUrlParameters() {
+  const host = params.get('wsHost') || '127.0.0.1';
+  const port = parseInt(params.get('wsPort')) || 443; // URL parameter for Streamer.bot Websocket server port, default 443
+  const endpoint = params.get('wsEndpoint') || '/ws';
+  const scheme = params.has('secure') ? (!getBooleanParam('secure') ? 'ws' : 'wss') : 'wss'; // Scheme is for either ws or wss, default wss
+  const password = params.has('wsPassword') ? decodeBase64(params.get('wsPassword')) : undefined;
+  const soundsEndpoint = params.get('soundsEndpoint') || `${host}/sounds`;
+  const timeoutParam = parseInt(params.get('timeout')) || 20;
+  const usingNodeServer = getBooleanParam('usingNodeServer') || false;
+  const nodeHost = usingNodeServer ? params.get('nodeHost') : `${host}/irl`;
+  
+  return { host, port, endpoint, scheme, password, soundsEndpoint, timeoutParam, usingNodeServer, nodeHost};
+}
+
+// Handle global variables
+const { host, port, endpoint, scheme, password, soundsEndpoint, timeoutParam, nodeHost } = getUrlParameters();
+let { usingNodeServer } = getUrlParameters();
+const soundsTtsUrl = usingNodeServer ? `https://${nodeHost}/tts` : `https://${host}/tts`;
+const soundsApiUrl = `https://${nodeHost}/api/sounds`;
+let sounds = [];
+
 // Streamer.bot Client Connect
 const client = new StreamerbotClient({
   scheme: scheme,
