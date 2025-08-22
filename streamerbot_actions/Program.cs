@@ -1,8 +1,24 @@
-﻿using Streamer.bot.Plugin.Interface;
+﻿/* 
+Author: rondhi, https://twitch.tv/rondhi, https://bsky.app/profile/rondhi.bsky.social
+                https://x.com/rondhi, https://ko-fi.com/rondhi, https://shop.rondhi.com
+Support: https://discord.streamer.bot
+
+This program is licensed under the GNU General Public License Version 3 (GPLv3).
+
+The GPLv3 is a free software license that ensures end users have the freedom to run,
+study, share, and modify the software. Key provisions include:
+
+- Copyleft: Modified versions of the software must also be licensed under the GPLv3.
+- Source Code: You must provide access to the source code when distributing the software.
+- Credit: You must credit the original author of the software, by mentioning either contact e-mail or their social media.
+- No Warranty: The software is provided "as-is," without warranty of any kind.
+
+For more details, see https://www.gnu.org/licenses/gpl-3.0.en.html.
+*/
+using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Model;
 using Streamer.bot.Plugin.Interface.Enums;
 using Streamer.bot.Common.Events;
-
 using System;
 using System.Linq;
 using System.Reflection;
@@ -12,22 +28,28 @@ using System.Text.RegularExpressions;
 using NAudio.Wave;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Text;
 
 public class CPHInline : CPHInlineBase
 {
-    const string LOG_HEADER = "----- IRL SOUND LOG: ";
+    const string LOG_PREFIX = "IRL SPEAKER LOG: ";
     const string DEFAULT_USER = "a user";
-    const float SOUND_VOLUME_PERCENT = 50f;
+    const string SOUND_VOLUME_PERCENT = "50";
     private LastSpoken lastSpoken = new LastSpoken();
     private SoundAlert lastSpeechFile = new SoundAlert();
     private List<SoundAlert> speechFileQueue = new List<SoundAlert>();
-    private List<string> speechFiles = new List<string>();
-    private List<string> soundFiles = new List<string>();
+    const float FULL_VOLUME = 1.0f; // Default volume (100%)
+    private Dictionary<string, string> soundFilesDict = new Dictionary<string, string>(); // Dictionary to store sound file paths with corresponding filenames without extensions
 
     public void Init()
     {
-        CPH.RegisterCustomTrigger("Split Speak", "split_speak", new[]{"Speaker.bot Browser Source"});
-        GetSoundFiles();
+        CPH.RegisterCustomTrigger("Split Speak", "split_speak", new[] { "Speaker.bot Browser Source" });
+
+        // Set default global variables
+        if (string.IsNullOrEmpty(CPH.GetGlobalVar<string>("irlSpeakerUsingNodeServer")))
+            CPH.SetGlobalVar("irlSpeakerUsingNodeServer", false);
+        if (string.IsNullOrEmpty(CPH.GetGlobalVar<string>("irlSpeakerSoundDirectory")))
+            CPH.SetGlobalVar("irlSpeakerSoundDirectory", Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "sounds")));
     }
 
     public void Dispose()
@@ -50,7 +72,8 @@ public class CPHInline : CPHInlineBase
         // Get the current user argument, default to defaultUser if not provided
         if (!CPH.TryGetArg("user", out string user))
             user = DEFAULT_USER;
-        user = user.ToLower();
+        // user = user.ToLower();
+        user = CapitalizeLetters(user);
 
         // Determine if we need to add a message prefix
         if (lastUser != user || timeSinceLastSpoken > lastSpokenCooldown)
@@ -67,61 +90,74 @@ public class CPHInline : CPHInlineBase
         return true;
     }
 
-    public bool PlayAlert()
+    public bool PlaySoundRemote()
     {
         string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
 
+        // Try to get the sound directory from the Set Argument sub-action
+        if (!TryBuildSoundDictionary(out soundFilesDict))
+            return false;
+        LogVerbose($"{methodName}Cound count: {soundFilesDict.Count}");
+        // LogVerbose($"{methodName} {JsonConvert.SerializeObject(soundFilesDict, Formatting.None)}");
+
         // Default variables
         string soundName;
-        float soundVolume;
         bool tts = false;
 
         // Get %soundId%
         // Set tts to true if %speechFile% exists
-        if (!CPH.TryGetArg("speechFile", out string speechFilePath))
-        {
-            speechFilePath = string.Empty;
-            if (!CPH.TryGetArg("soundId", out soundName))
-            {
-                CPH.LogError($"{LOG_HEADER}{methodName}%soundId% doesn't exist");
-                return false;
-            }
-        }
-        else
+        if (CPH.TryGetArg("speechFile", out string speechFilePath))
         {
             tts = true;
             soundName = Path.GetFileName(speechFilePath);
         }
-        Log($"{methodName}soundName '{soundName}'");
+        else
+        {
+            speechFilePath = string.Empty;
+            if (!CPH.TryGetArg("soundId", out soundName))
+            {
+                LogError($"{LOG_PREFIX}{methodName}%soundId% doesn't exist");
+                return false;
+            }
+        }
 
         // Get %soundVolume%
-        if (!CPH.TryGetArg("soundVolume", out string soundVolumeString))
-            soundVolumeString = "50";
+        if (!CPH.TryGetArg("soundVolume", out string soundVolumePercent))
+        {
+            soundVolumePercent = SOUND_VOLUME_PERCENT;
+            LogError($"${LOG_PREFIX}{methodName}%soundVolume% doesn't exist. Playing at 50% volume");
+        }
+        LogVerbose($"{methodName}soundVolumePercent '{soundVolumePercent}%'");
+        float soundVolume = ParseVolume(soundVolumePercent);
+        LogVerbose($"{methodName}soundVolume '{soundVolume}%'");
 
-        if (!int.TryParse(soundVolumeString, out int soundVolumePercent))
-            CPH.LogError($"${LOG_HEADER}{methodName}%soundVolume% doesn't exist. Playing at 50% volume");
-
-        Log($"{methodName}Parsed soundVolumePercent: {soundVolumePercent}");
-        soundVolume = soundVolumePercent / 100f;
-        Log($"{methodName}soundVolumePercent '{soundVolumePercent}%'");
-        Log($"{methodName}soundVolume '{soundVolume}%'");
-
-        // Get %duration%, if it exists
+        // Get %duration%, if it exists (duration assumes it's a speech file)
         if (!CPH.TryGetArg("duration", out long duration))
         {
-            string filePath = GetFilePath(soundName);
+            // string filePath = GetFilePath(soundName);
+            LogVerbose($"{methodName}soundName '{soundName}'");
+            string cleanedName = CleanString(soundName);
+            LogVerbose($"{methodName}cleaned soundName '{cleanedName}'");
+            if (!TryFindSound(CleanString(cleanedName), soundFilesDict, out string filePath))
+            {
+                LogError($"{methodName}Unable to find matching sound for '{soundName}'");
+                return false;
+            }
+            soundName = filePath;
             if (File.Exists(filePath))
             {
-                Log($"{methodName}File '{filePath}' exists");
+                LogVerbose($"{methodName}File exists '{filePath}'");
+                soundName = RemoveOriginalDirectory(soundName).TrimStart('/');
+                LogVerbose($"{methodName}originalPathRemoved '{soundName}'");
                 duration = GetSoundDuration(filePath);
             }
             else
             {
-                Log($"{methodName}File '{filePath}' does not exist");
+                LogVerbose($"{methodName}File '{filePath}' does not exist");
                 duration = 0;
             }
         }
-        Log($"{methodName}duration '{duration}'");
+        LogVerbose($"{methodName}duration '{duration}'");
 
         SoundAlert soundAlert = new SoundAlert
         {
@@ -141,18 +177,43 @@ public class CPHInline : CPHInlineBase
                 soundAlert.TtsUser = userName;
         }
 
-        SendSoundAlertEvent(soundAlert);
+        BroadcastSoundAlert(soundAlert);
         if (tts)
         {
             if (!string.IsNullOrEmpty(lastSpeechFile.FileName))
             {
-                Log($"{methodName}lastSpeechFile\u000A{JsonConvert.SerializeObject(lastSpeechFile, Formatting.Indented)}");
+                LogVerbose($"{methodName}lastSpeechFile\u000A{JsonConvert.SerializeObject(lastSpeechFile, Formatting.None)}");
                 DeleteOldFile(lastSpeechFile.FilePath);
             }
-            Log($"{methodName}newSpeechFile\u000A{JsonConvert.SerializeObject(soundAlert, Formatting.Indented)}");
+            LogVerbose($"{methodName}newSpeechFile\u000A{JsonConvert.SerializeObject(soundAlert, Formatting.None)}");
             lastSpeechFile = soundAlert;
         }
         return true;
+    }
+
+    public bool ModifyPermission()
+    {
+        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+        Platform currentPlatform = Platform.Twitch;
+        EventType eventType = CPH.GetEventType();
+        switch (eventType)
+        {
+            case EventType.CommandTriggered:
+                CPH.TryGetArg("commandSource", out string commandSource);
+                if (!Enum.TryParse(commandSource, true, out currentPlatform))
+                    LogError($"{LOG_PREFIX}{methodName}Unable to parse commandSource");
+                break;
+        }
+        if (!CPH.TryGetArg("targetUserId", out string userId))
+            return false;
+        if (!CPH.TryGetArg("groupName", out string groupName))
+            groupName = "TTS Permission";
+        if (!CPH.TryGetArg("addPermission", out bool addPermission))
+            addPermission = false;
+        if (addPermission)
+            return CPH.AddUserIdToGroup(userId, currentPlatform, groupName);
+        else
+            return CPH.RemoveUserIdFromGroup(userId, currentPlatform, groupName);
     }
 
     public bool ReplayLastTTS()
@@ -160,11 +221,11 @@ public class CPHInline : CPHInlineBase
         string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
         if (string.IsNullOrEmpty(lastSpeechFile.FilePath))
         {
-            CPH.LogError($"{LOG_HEADER}{methodName}There is no TTS to replay");
+            LogError($"{LOG_PREFIX}{methodName}There is no TTS to replay");
             return false;
         }
 
-        SendSoundAlertEvent(lastSpeechFile);
+        BroadcastSoundAlert(lastSpeechFile);
         CPH.SetArgument("duration", lastSpeechFile.Duration);
         return true;
     }
@@ -182,7 +243,7 @@ public class CPHInline : CPHInlineBase
                 {
                     if (!CPH.TryGetArg("message", out message))
                     {
-                        CPH.LogError($"{LOG_HEADER}{methodName}No %message% or %messageStripped% found");
+                        LogError($"{LOG_PREFIX}{methodName}No %message% or %messageStripped% found");
                         return false;
                     }
                 }
@@ -191,16 +252,33 @@ public class CPHInline : CPHInlineBase
             case EventType.TwitchRewardRedemption:
                 if (!CPH.TryGetArg("rawInput", out message))
                 {
-                    CPH.LogError($"{LOG_HEADER}{methodName}No %rawInput% found");
+                    LogError($"{LOG_PREFIX}{methodName}No %rawInput% found");
                     return false;
                 }
                 break;
             default:
-                CPH.LogError($"{LOG_HEADER}{methodName}No matching trigger found");
+                LogError($"{LOG_PREFIX}{methodName}No matching trigger found");
                 return false;
         }
 
         return true;
+    }
+
+    private string RemoveOriginalDirectory(string fullPath)
+    {
+        string originalDirectory = CPH.GetGlobalVar<string>("irlSpeakerSoundDirectory");
+        if (fullPath.Contains("\\"))
+            fullPath = fullPath.Replace("\\", "/");
+        if (originalDirectory.Contains("\\"))
+            originalDirectory = originalDirectory.Replace("\\", "/");
+
+        int lastIndex = fullPath.LastIndexOf(originalDirectory);
+        return fullPath.Substring(lastIndex + originalDirectory.Length);
+    }
+
+    private string CleanString(string input)
+    {
+        return Regex.Replace(input.ToLower(), @"[^a-zA-Z0-9_-]", "_");
     }
 
     private void SeparateVoiceMessage(string userInput)
@@ -212,7 +290,7 @@ public class CPHInline : CPHInlineBase
         {
             var voiceAlias = "";
             var message = "";
-            
+
             // Check if the input string contains the current match
             int startIndex = userInput.IndexOf(match.Value);
             int endIndex = startIndex + match.Value.Length;
@@ -264,6 +342,16 @@ public class CPHInline : CPHInlineBase
         return TimeSpan.FromSeconds(20); // Default cooldown 20 seconds
     }
 
+    public bool DeleteAllSpeechFiles()
+    {
+        if (!TryBuildSoundDictionary(out var speechFilesDict))
+        foreach (var file in speechFilesDict)
+        {
+            DeleteOldFile(file.Value);
+        }
+        return true;
+    }
+
     private void DeleteOldFile(string filePath)
     {
         string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
@@ -272,39 +360,12 @@ public class CPHInline : CPHInlineBase
             if (!File.Exists(filePath))
                 return;
             File.Delete(filePath);
-            Log($"{methodName}Deleted old file: '{filePath}'");
+            LogVerbose($"{methodName}Deleted old file: '{filePath}'");
         }
         catch (Exception ex)
         {
-            CPH.LogError($"{LOG_HEADER}{methodName}Error deleting file '{filePath}': {ex.Message}");
+            LogError($"{LOG_PREFIX}{methodName}Error deleting file '{filePath}': {ex.Message}");
         }
-    }
-
-    private List<string> GetSoundFiles()
-    {
-        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
-        var soundFiles = new List<string>();
-        string directory = CPH.GetGlobalVar<string>("irlSpeakerDirectory") ?? null;
-        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
-            return soundFiles;
-        // soundFiles = Directory.GetFiles(directory).Select(file => Path.GetFullPath(Path.GetFileName(file))).ToList();
-        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-        {
-            soundFiles.Add(Path.GetFullPath(file));
-        }
-        Log($"{methodName}soundFiles:\u000A{JsonConvert.SerializeObject(soundFiles, Formatting.Indented)}");
-        return soundFiles;
-    }
-
-    private string GetFilePath(string fileName)
-    {
-        if (soundFiles.Count < 1)
-        {
-            soundFiles = GetSoundFiles();
-            if (soundFiles.Count < 1)
-                return null;
-        }
-        return soundFiles.FirstOrDefault(file => Path.GetFileName(file).Equals(fileName, StringComparison.OrdinalIgnoreCase));
     }
 
     private long GetSoundDuration(string filePath)
@@ -312,7 +373,7 @@ public class CPHInline : CPHInlineBase
         string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
         if (string.IsNullOrEmpty(filePath))
         {
-            CPH.LogError($"{LOG_HEADER}{methodName}File path cannot be null or empty.");
+            LogError($"{LOG_PREFIX}{methodName}File path cannot be null or empty.");
             return 0;
         }
 
@@ -320,7 +381,7 @@ public class CPHInline : CPHInlineBase
         {
             long duration = 0;
             string fileExtension = Path.GetExtension(filePath);
-            Log($"{methodName}fileExtention: '{fileExtension}'");
+            LogVerbose($"{methodName}fileExtention: '{fileExtension}'");
             switch (fileExtension)
             {
                 case "wav":
@@ -344,28 +405,217 @@ public class CPHInline : CPHInlineBase
                     }
                     break;
             }
-            Log($"{methodName}File '{filePath}' is '{duration}' milliseconds");
+            LogVerbose($"{methodName}File '{filePath}' is '{duration}' milliseconds");
             return duration;
         }
         catch (Exception ex)
         {
-            CPH.LogError($"{LOG_HEADER}{methodName}Failed to read file: '{ex.Message}'");
+            LogError($"{LOG_PREFIX}{methodName}Failed to read file: '{ex.Message}'");
             return 0;
         }
     }
 
-    private void SendSoundAlertEvent(SoundAlert soundAlert)
+    private void BroadcastSoundAlert(SoundAlert soundAlert)
     {
         string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+        bool usingNodeServer = CPH.GetGlobalVar<bool?>("irlSpeakerUsingNodeServer") ?? false;
         JObject soundAlertData = new JObject(
+            new JProperty("extensionName", "irlSpeaker"),
             new JProperty("soundId", soundAlert.FileName),
             new JProperty("soundVolume", soundAlert.Volume),
             new JProperty("isTts", soundAlert.IsTts),
-            new JProperty("duration", soundAlert.Duration)
+            new JProperty("duration", soundAlert.Duration),
+            new JProperty("usingNodeServer", usingNodeServer)
         );
 
-        Log($"{methodName}json data:\u000A{soundAlertData.ToString(Formatting.Indented)}");
+        LogVerbose($"{methodName}json data:\u000A{soundAlertData.ToString(Formatting.None)}");
         CPH.WebsocketBroadcastJson(soundAlertData.ToString(Formatting.None));
+    }
+
+    public bool TryBuildSoundDictionary(out Dictionary<string, string> fileDict)
+    {
+        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+        fileDict = new Dictionary<string, string>();
+
+        string directory = CPH.GetGlobalVar<string>("irlSpeakerSoundDirectory");
+        if (string.IsNullOrEmpty(directory))
+        {
+            LogError($"~irlSpeakerSoundDirectory~ is null or empty!");
+            return false;
+        }
+
+        // Find the sound paths in the specified directory
+        if (fileDict.Count < 1 || fileDict == null)
+        {
+            fileDict = FindSoundPaths(directory);
+            // Check if the sound list is not empty or null
+            if (fileDict.Count < 1 || fileDict == null)
+            {
+                LogError($"{methodName}soundFilesDict is null");
+                return false; // Return false if the sound list is empty or null
+            }
+        }
+
+        return true;
+    }
+
+    public bool PlaySound()
+    {
+        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+
+        // Try to get the sound directory from the Set Argument sub-action
+        if (!TryBuildSoundDictionary(out soundFilesDict))
+            return false;
+
+        bool finishBeforeContinuing = CPH.TryGetArg("finishBeforeContinuing", out bool fBC) ? fBC : false;
+        bool volumeArgument = CPH.TryGetArg("volumeArgument", out bool vA) ? vA : false;
+        float volume = FULL_VOLUME; // Initialize the volume value to 100%
+
+        // Parse soundName based on trigger
+        string soundName = null;
+        switch (CPH.GetEventType())
+        {
+            case EventType.CommandTriggered:
+                // Get the "match[1]" argument to specify the sound name
+                if (!CPH.TryGetArg("match[1]", out soundName))
+                {
+                    LogError($"{methodName}%match[1]% doesn't exist!");
+                    return false;
+                }
+                // Check if the "volume" argument is present in the arguments
+                if (CPH.TryGetArg("input1", out string input1) && volumeArgument)
+                    volume = ParseVolume(input1);
+                break;
+            case EventType.TwitchRewardRedemption:
+                // Get the "rawInput" argument to specify the sound name
+                if (!CPH.TryGetArg("rawInput", out string rawInput))
+                {
+                    LogError($"{methodName}%rawInput% doesn't exist!");
+                    return false;
+                }
+                string[] words = SplitWords(rawInput); // Split rawInput into words
+                soundName = words[0];
+
+                // If there is a second word and it's a number, parse it as the volume to play the sound
+                if (words.Length > 1)
+                    volume = ParseVolume(words[1]);
+                CPH.SetArgument("rewardRedemption", true);
+                break;
+        }
+
+        // Check that soundName actually exists
+        if (string.IsNullOrEmpty(soundName))
+        {
+            LogError($"{methodName}soundName is null");
+            return false;
+        }
+
+        // Find the sound path for the specified sound name
+        // string soundFilePath = FindSound(soundName.Trim().ToLower(), soundFilesDict);
+        if (!TryFindSound(soundName, soundFilesDict, out string soundFilePath))
+        {
+            LogError($"{methodName}Unable to find matching sound for '{soundName}'");
+            return false;
+        }
+
+        // Check if the sound file is found and play it with the current volume
+        if (string.IsNullOrEmpty(soundFilePath))
+        {
+            LogError($"{methodName}File '{soundName}' not found!");
+            return false;
+        }
+
+        if (CPH.TryGetArg("volume", out string volumeInput))
+            volume = ParseVolume(volumeInput);
+
+        CPH.PlaySound(soundFilePath, volume, finishBeforeContinuing);
+        return true;
+    }
+
+    private float ParseVolume(string input)
+    {
+        // Try to parse the user input as a double
+        if (!double.TryParse(input, out double userVolume))
+            userVolume = 100;
+        
+        // Clamp the user input value to a range of 1-100%
+        if (userVolume < 1)
+            userVolume = 1;
+        if (userVolume > 100)
+            userVolume = 100;
+
+        // Update the volume value based on the parsed and clamped user input
+        return (float)userVolume / 100;
+    }
+
+    private string[] SplitWords(string input)
+    {
+        return Regex.Split(input, @"\s+");
+    }
+
+    /// <summary>
+    /// Finds a sound path in the specified dictionary based on the given sound name.
+    /// </summary>
+    private bool TryFindSound(string soundName, Dictionary<string, string> soundsHash, out string filePath)
+    {
+        // Try to get the sound path for the specified sound name
+        return soundsHash.TryGetValue(soundName, out filePath);
+    }
+
+    /// <summary>
+    /// Finds all sound paths in the specified directory and its subdirectories.
+    /// </summary>
+    private Dictionary<string, string> FindSoundPaths(string soundDirectory)
+    {
+        string methodName = $"{MethodBase.GetCurrentMethod().Name}: ";
+        try
+        {
+            var sounds = new Dictionary<string, string>();
+
+            // Check if the specified directory exists and has any files
+            if (!Directory.Exists(soundDirectory) || !Directory.EnumerateFiles(soundDirectory, "*", SearchOption.AllDirectories).Any())
+                return null;
+
+            foreach (string fileName in Directory.EnumerateFiles(soundDirectory, "*", SearchOption.AllDirectories))
+            {
+                var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+                var soundPath = Path.GetFullPath(fileName);
+
+                // Skip files with extensions other than .wav or .mp3
+                if ((Path.GetExtension(fileName) != ".wav" && Path.GetExtension(fileName) != ".mp3") ||
+                    sounds.TryGetValue(fileNameWithoutExtension.ToLower(), out _))
+                    continue;
+
+                // Add the sound file path to the dictionary
+                sounds.Add(fileNameWithoutExtension.ToLower(), soundPath);
+            }
+
+            // Log a verbose message with the populated sound dictionary for debugging purposes
+            // LogVerbose($"{methodName}{JsonConvert.SerializeObject(sounds, Formatting.None)}");
+            return sounds;
+        }
+        catch (Exception ex)
+        {
+            LogError($"{methodName}Exception: {ex.Message}");
+            return null;
+        }
+    }
+
+    // Helper method to capitalize letters in a string and add spaces before them if needed
+    private static string CapitalizeLetters(string input)
+    {
+        var sb = new StringBuilder();
+        foreach (char c in input)
+        {
+            if (char.IsLower(c))
+                sb.Append(c);
+            else
+            {
+                sb.Append($" {char.ToUpper(c)}");
+            }
+        }
+
+        return sb.ToString().Trim();
     }
 
     private bool TryParseTimeString(string input, out TimeSpan parsedTime)
@@ -413,9 +663,14 @@ public class CPHInline : CPHInlineBase
         return false;
     }
 
-    private void Log(string logMessage)
+    private void LogError(string errorMessage)
     {
-        CPH.LogVerbose($"{LOG_HEADER}{logMessage}");
+        CPH.LogError($"{LOG_PREFIX}{errorMessage}");
+    }
+
+    private void LogVerbose(string verboseMessage)
+    {
+        CPH.LogVerbose($"{LOG_PREFIX}{verboseMessage}");
     }
 
     private class SoundAlert

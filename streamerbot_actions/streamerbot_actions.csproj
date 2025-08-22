@@ -2,10 +2,11 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net481</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <NoWarn>CS0114</NoWarn> <!-- Ignore CS0114 errors -->
+    <!-- Ignore CS0114 errors -->
+    <NoWarn>CS0114</NoWarn>
   </PropertyGroup>
 
   <!-- Windows-specific references -->
@@ -84,58 +85,61 @@
   <!-- Linux-specific references -->
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
     <Reference Include="mscorlib">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/mscorlib.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/mscorlib.dll</HintPath>
     </Reference>
     <Reference Include="System">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.dll</HintPath>
     </Reference>
     <Reference Include="System.Core">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Core.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Core.dll</HintPath>
     </Reference>
     <Reference Include="System.Net">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Net.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Net.dll</HintPath>
     </Reference>
     <Reference Include="System.Net.Http">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Net.Http.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Net.Http.dll</HintPath>
     </Reference>
     <Reference Include="netstandard">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/netstandard.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/netstandard.dll</HintPath>
     </Reference>
     <Reference Include="System.Windows.Forms">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Windows.Forms.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Windows.Forms.dll</HintPath>
     </Reference>
     <Reference Include="System.Drawing">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Drawing.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/windows/Microsoft.NET/Framework64/v4.0.30319/System.Drawing.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.VisualBasic">
-      <HintPath>/home/deck/.local/lib/streamer.bot/pfx/drive_c/Windows/Microsoft.NET/Framework64/v4.0.30319/Microsoft.VisualBasic.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/pfx/drive_c/Windows/Microsoft.NET/Framework64/v4.0.30319/Microsoft.VisualBasic.dll</HintPath>
     </Reference>
     <Reference Include="Streamer.bot.Plugin.Interface">
-      <HintPath>/home/deck/.local/lib/streamer.bot/Streamer.bot.Plugin.Interface.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/Streamer.bot.Plugin.Interface.dll</HintPath>
     </Reference>
     <Reference Include="Streamer.bot.Common">
-      <HintPath>/home/deck/.local/lib/streamer.bot/Streamer.bot.Common.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/Streamer.bot.Common.dll</HintPath>
     </Reference>
     <Reference Include="Streamer.bot.Auth">
-      <HintPath>/home/deck/.local/lib/streamer.bot/Streamer.bot.Auth.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/Streamer.bot.Auth.dll</HintPath>
     </Reference>
     <Reference Include="Streamer.bot.EmoteHandlers">
-      <HintPath>/home/deck/.local/lib/streamer.bot/Streamer.bot.EmoteHandlers.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/Streamer.bot.EmoteHandlers.dll</HintPath>
     </Reference>
     <Reference Include="NAudio">
-      <HintPath>/home/deck/.local/lib/streamer.bot/NAudio.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/NAudio.dll</HintPath>
     </Reference>
     <Reference Include="NAudio.Core">
-      <HintPath>/home/deck/.local/lib/streamer.bot/NAudio.Core.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/NAudio.Core.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>/home/deck/.local/lib/streamer.bot/Newtonsoft.Json.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="Twitch.Common">
-      <HintPath>/home/deck/.local/lib/streamer.bot/Twitch.Common.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/Twitch.Common.dll</HintPath>
     </Reference>
     <Reference Include="websocket-sharp">
-      <HintPath>/home/deck/.local/lib/streamer.bot/websocket-sharp.dll</HintPath>
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/websocket-sharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Subathon">
+      <HintPath>/home/rondhi/.local/lib/streamer.bot/dlls/Subathon.dll</HintPath>
     </Reference>
   </ItemGroup>
 
