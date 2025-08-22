@@ -1,36 +1,5 @@
 const { StreamerbotClient } = window;
-
-// Handle global variables
-const { soundsHost } = getUrlParameters();
-const soundsTtsUrl = `https://${soundsHost}/tts`;
-const soundsApiUrl = `https://${soundsHost}/api/sounds`;
-let sounds = [];
-
-// Can use URL parameters to set different options
-function getUrlParameters() {
-  const params = new URLSearchParams(window.location.search); // Get URL parameters from browser
-  const host = params.get('host') || '127.0.0.1';
-  const soundsHost = params.get('soundsHost') || `${host}/irl`;
-  const soundsPath = params.get('sounds') || `${host}/sounds`;
-  const port = parseInt(params.get('port')) || 443; // URL parameter for Streamer.bot Websocket server port, default 443
-  let scheme = 'ws';
-  if (getBooleanParam('secure')) {
-    scheme = 'wss';
-  } // Scheme is for either ws or wss, default ws
-  
-  const endpoint = params.get('endpoint') || '/';
-  const timeoutParam = parseInt(params.get('timeout')) || 20;
-  
-  
-  let password;
-  if (params.has('password')) {
-    password = decodeBase64(params.get('password'))
-  } else {
-    password = undefined;
-  }
-
-  return { host, port, password, scheme, endpoint, timeoutParam, soundsHost, soundsPath };
-}
+const params = new URLSearchParams(window.location.search); // Get URL parameters from browser
 
 function decodeBase64(base64EncodedStr) {
   return atob(base64EncodedStr);
@@ -38,13 +7,11 @@ function decodeBase64(base64EncodedStr) {
 
 // Function to get boolean value from URL parameter
 function getBooleanParam(paramName) {
-	const params = new URLSearchParams(window.location.search);
-	const paramValue = params.get(paramName);
+  const paramValue = params.get(paramName);
 	return paramValue === 'true'; // Convert the string to boolean
 }
 
 // Streamer.bot Client Connect
-const { host, port, password, scheme, endpoint } = getUrlParameters();
 const client = new StreamerbotClient({
   scheme: scheme,
   host: host,
