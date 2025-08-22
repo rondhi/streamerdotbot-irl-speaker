@@ -34,44 +34,59 @@ const client = new StreamerbotClient({
 
 // This is the main function that connects to the Streamer.bot websocket server
 function connectSB() {
-  client.on('General.Custom', (wsdata) => {
-    if (wsdata.data.extensionName === 'irlSpeaker') {
-      console.log('Received data from Streamer.bot:', wsdata); // Log the entire received data object
-      // Ignore other General Custom
-      if ( wsdata.data.soundId !== undefined ||
-           wsdata.data.soundVolume !== undefined ||
-           wsdata.data.isTts !== undefined ||
-           wsdata.data.duration !== undefined ||
-           wsdata.data.onePointOh !== undefined
-      ) {
-        // const { soundId, soundVolume, tts } = wsdata.data;
-        const soundId = wsdata.data.soundId;
-        const soundVolume = wsdata.data.soundVolume;
-        const isTts = wsdata.data.isTts;
-        const duration = wsdata.data.duration;
-        const onePointOh = wsdata.data.onePointOh;
-  
-        // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
-        playSound(soundId, soundVolume, isTts, duration, onePointOh);
-      }
+  client.on('General.Custom', (sbData) => {
+    const data = sbData.data;
+    // Ignore other General Custom
+    if (data.extensionName !== 'irlSpeaker' ||
+        data.soundId === undefined ||
+        data.soundVolume === undefined ||
+        data.isTts === undefined ||
+        data.duration === undefined ||
+        data.usingNodeServer === undefined) {
+      return;
     }
+    console.log('Received data from Streamer.bot:', data); // Log the entire received data object
+    // const { soundId, soundVolume, tts } = data;
+    const soundId = data.soundId;
+    const soundVolume = data.soundVolume;
+    const isTts = data.isTts;
+    const duration = data.duration;
+    usingNodeServer = data.usingNodeServer;
+
+    // Example URL: https://example.com/playSound?soundId=abc&soundVolume=0.5&timeout=60
+    playSound(soundId, soundVolume, isTts, duration, usingNodeServer);
   });
 }
 
-function playSound(soundId, soundVolume, isTts, duration, onePointOh) {
+// Fetch sounds from the server and populate the sounds array
+function fetchSounds() {
+  fetch(soundsApiUrl)
+    .then((response) => response.json())
+    .then((soundFiles) => {
+      sounds = soundFiles.map(
+        (soundFile) =>
+          `https://${nodeHost}/sounds/${encodeURIComponent(soundFile)}`
+      );
+      console.log('Sounds loaded:', sounds);
+    })
+    .catch((error) => console.error('Error fetching sounds:', error));
+}
+
+function playSound(soundId, soundVolume, isTts, duration, usingNodeServer) {
   let soundUrl;
-  const { soundsPath } = getUrlParameters();
   if (isTts) {
     soundUrl = `${soundsTtsUrl}/${soundId}`;
   } else {
-  if (onePointOh) {
-    soundUrl = `https://${soundsPath}/sounds/${soundId}`;
-  } else {
-    soundUrl = getHighestPrioritySound(soundId, sounds);
+    if (usingNodeServer) {
+      if (sounds.length === 0) {
+        fetchSounds();
+      }
+      soundUrl = getHighestPrioritySound(soundId, sounds);
+    } else {
+      soundUrl = `https://${soundsEndpoint}/${soundId}`;
+    }
   }
-}
 
-  const { timeoutParam } = getUrlParameters();
   console.log(`timeoutParam: '${timeoutParam}'`);
   console.log('Attempting to play sound:', soundUrl);
 
@@ -163,19 +178,4 @@ function SetConnectionStatus(connected) {
   }
 }
 
-// Fetch sounds from the server and populate the sounds array
-function fetchSounds() {
-  fetch(soundsApiUrl)
-    .then((response) => response.json())
-    .then((soundFiles) => {
-      sounds = soundFiles.map(
-        (soundFile) =>
-          `https://${soundsHost}/sounds/${encodeURIComponent(soundFile)}`
-      );
-      console.log('Sounds loaded:', sounds);
-    })
-    .catch((error) => console.error('Error fetching sounds:', error));
-}
-
-fetchSounds();
 connectSB();
